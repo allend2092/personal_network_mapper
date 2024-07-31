@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Traceroute Visualization</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden; /* Hide scrollbars */
+        }
+        .label {
+            color: white;
+            background-color: black;
+            padding: 2px;
+            border-radius: 3px;
+            position: absolute;
+            transform: translate(-50%, -50%);
+        }
+    </style>
+</head>
+<body>
+    <div id="traceroute-container"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/renderers/CSS2DRenderer.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // Dummy traceroute data (replace with actual data later)
+            const tracerouteData = [
+                { hop: 1, ip: "172.16.0.1", rtt: 1 },
+                { hop: 2, ip: "100.92.104.66", rtt: 12 },
+                { hop: 3, ip: "69.139.228.113", rtt: 16 },
+                { hop: 4, ip: "68.85.89.213", rtt: 11 },
+                { hop: 5, ip: "24.124.155.129", rtt: 12 },
+                { hop: 6, ip: "96.110.43.245", rtt: 38 },
+                { hop: 7, ip: "96.110.34.110", rtt: 24 },
+                { hop: 8, ip: "94.142.107.196", rtt: 33 },
+                { hop: 9, ip: null, rtt: null },
+                { hop: 10, ip: null, rtt: null },
+                { hop: 11, ip: "176.52.248.88", rtt: 142 },
+                { hop: 12, ip: "213.140.51.61", rtt: 144 },
+                { hop: 13, ip: "62.53.9.55", rtt: 143 },
+                { hop: 14, ip: "62.53.0.12", rtt: 152 },
+                { hop: 15, ip: "62.53.7.49", rtt: 160 },
+                { hop: 16, ip: "62.53.6.188", rtt: 155 },
+                { hop: 17, ip: "62.53.13.35", rtt: 171 },
+                { hop: 18, ip: "77.7.22.223", rtt: 163 }
+            ];
+
+            // Create a Three.js scene, camera, and renderer
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('traceroute-container').appendChild(renderer.domElement);
+
+            // Create CSS2DRenderer for labels
+            const labelRenderer = new THREE.CSS2DRenderer();
+            labelRenderer.setSize(window.innerWidth, window.innerHeight);
+            labelRenderer.domElement.style.position = 'absolute';
+            labelRenderer.domElement.style.top = '0';
+            document.getElementById('traceroute-container').appendChild(labelRenderer.domElement);
+
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                labelRenderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            // Create a bigger sphere
+            const geometry = new THREE.SphereGeometry(10, 32, 32);
+            const material = new THREE.MeshPhongMaterial({ color: 0x99cc66, shininess: 30 });
+            const sphere = new THREE.Mesh(geometry, material);
+            scene.add(sphere);
+
+            // Add some ambient light
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+
+            // Add a point light
+            const pointLight = new THREE.PointLight(0xffffff, 1);
+            pointLight.position.set(10, 10, 10);
+            scene.add(pointLight);
+
+            // Position the camera
+            camera.position.z = 30;
+
+            // Debugging: Log scene and camera
+            console.log("Scene:", scene);
+            console.log("Camera:", camera);
+
+            // Function to create text labels
+            function createTextLabel(message, position, normal, offset) {
+                const div = document.createElement('div');
+                div.className = 'label';
+                div.textContent = message;
+                const label = new THREE.CSS2DObject(div);
+                label.position.set(position.x + normal.x * offset, position.y + normal.y * offset, position.z + normal.z * offset);
+                return label;
+            }
+
+            // Function to map traceroute hops onto the sphere
+            function plotHops(hops) {
+                const radius = 10;
+                const colors = [0xff0000, 0x00ff00, 0x0000ff, 0x888888]; // Red, Green, Blue, Gray for null hops
+                const labelOffset = -7; // Adjust this to change the distance of the label from the node
+
+                hops.forEach((hop, index) => {
+                    const phi = Math.acos(-1 + (2 * index) / (hops.length - 1));
+                    const theta = Math.PI * 2 * (index / hops.length);
+
+                    const x = radius * Math.sin(phi) * Math.cos(theta);
+                    const y = radius * Math.sin(phi) * Math.sin(theta);
+                    const z = radius * Math.cos(phi);
+
+                    const hopGeometry = new THREE.SphereGeometry(0.3, 16, 16);
+                    const hopMaterial = new THREE.MeshPhongMaterial({ color: hop.ip ? colors[index % colors.length] : colors[3], shininess: 30 });
+                    const hopSphere = new THREE.Mesh(hopGeometry, hopMaterial);
+
+                    hopSphere.position.set(x, y, z);
+                    sphere.add(hopSphere);
+
+                    // Calculate the normal vector at this point
+                    const normal = new THREE.Vector3(x, y, z).normalize();
+
+                    // Create and add text label
+                    const label = createTextLabel(hop.ip ? `Hop ${hop.hop}: ${hop.ip}` : `Hop ${hop.hop}: *`, hopSphere.position, normal, labelOffset);
+                    hopSphere.add(label);
+                    hopSphere.userData.label = label; // Store reference to the label
+                });
+            }
+
+            plotHops(tracerouteData);
+
+            // Variables for mouse interaction
+            let isDragging = false;
+            let previousMousePosition = {
+                x: 0,
+                y: 0
+            };
+
+            // Function to handle mouse down
+            function onMouseDown(event) {
+                isDragging = true;
+                previousMousePosition = {
+                    x: event.clientX,
+                    y: event.clientY
+                };
+            }
+
+            // Function to handle mouse move
+            function onMouseMove(event) {
+                if (isDragging) {
+                    const deltaMove = {
+                        x: event.clientX - previousMousePosition.x,
+                        y: event.clientY - previousMousePosition.y
+                    };
+
+                    const deltaRotationQuaternion = new THREE.Quaternion()
+                        .setFromEuler(new THREE.Euler(
+                            toRadians(deltaMove.y * 0.5),
+                            toRadians(deltaMove.x * 0.5),
+                            0,
+                            'XYZ'
+                        ));
+
+                    sphere.quaternion.multiplyQuaternions(deltaRotationQuaternion, sphere.quaternion);
+
+                    previousMousePosition = {
+                        x: event.clientX,
+                        y: event.clientY
+                    };
+                }
+            }
+
+            // Function to handle mouse up
+            function onMouseUp() {
+                isDragging = false;
+            }
+
+            // Attach event listeners to both renderers
+            renderer.domElement.addEventListener('mousedown', onMouseDown);
+            renderer.domElement.addEventListener('mousemove', onMouseMove);
+            renderer.domElement.addEventListener('mouseup', onMouseUp);
+            labelRenderer.domElement.addEventListener('mousedown', onMouseDown);
+            labelRenderer.domElement.addEventListener('mousemove', onMouseMove);
+            labelRenderer.domElement.addEventListener('mouseup', onMouseUp);
+
+            function toRadians(angle) {
+                return angle * (Math.PI / 180);
+            }
+
+            function animate() {
+                requestAnimationFrame(animate);
+                renderer.render(scene, camera);
+                labelRenderer.render(scene, camera);
+
+                // Update label visibility based on camera view
+                sphere.children.forEach((object) => {
+                    if (object.isMesh && object.userData.label) {
+                        // Convert node position to camera coordinates
+                        const vector = new THREE.Vector3();
+                        object.getWorldPosition(vector);
+                        vector.project(camera);
+
+                        const isVisible = vector.z < 1;
+                        object.userData.label.element.style.display = isVisible ? 'block' : 'none';
+                    }
+                });
+            }
+
+            animate();
+        });
+    </script>
+</body>
+</html>
