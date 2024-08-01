@@ -1,10 +1,14 @@
 import os
 import subprocess
+import platform
 import scapy.all as scapy
 import ipaddress
 import random
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# Replace scapy with a Windows-compatible library
+# import scapy_windows as scapy
 
 # Directory to store the results
 output_dir = 'network_discovery_results'
@@ -21,23 +25,34 @@ def discover_local_network(network_range):
     local_ips = [answer[1].psrc for answer in answered_list]
     return local_ips
 
-# Function to discover reachable external addresses
 def discover_external_addresses(addresses):
     print("Pinging external addresses...")
     reachable_addresses = []
     for address in addresses:
-        response = subprocess.run(['ping', '-c', '1', address], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if response.returncode == 0:
-            reachable_addresses.append(address)
-            print(f"Address reachable: {address}")
-        else:
-            print(f"Address not reachable: {address}")
+        try:
+            if platform.system() == "Windows":
+                ping_cmd = ["ping", "-n", "1", address]
+            else:
+                ping_cmd = ["ping", "-c", "1", address]
+            response = subprocess.run(ping_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=2)
+            if response.returncode == 0:
+                reachable_addresses.append(address)
+                print(f"Address reachable: {address}")
+            else:
+                print(f"Address not reachable: {address}")
+        except subprocess.TimeoutExpired:
+            print(f"Ping to {address} timed out")
+        except OSError as e:
+            print(f"Error pinging {address}: {e}")
     return reachable_addresses
 
 # Function to perform traceroute
 def perform_traceroute(address):
     print(f"Performing traceroute to {address}...")
-    result = subprocess.run(['traceroute', address], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if platform.system() == "Windows":
+        result = subprocess.run(['tracert', '-d', address], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    else:
+        result = subprocess.run(['traceroute', address], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return address, result.stdout.decode('utf-8')
 
 # Function to generate random public IP addresses
@@ -89,7 +104,7 @@ def main():
                 ip, trace_result = future.result()
                 with open(os.path.join(traceroute_dir, f"{ip}.txt"), 'w') as f:
                     f.write(trace_result)
-                print(f"Traceroute to {ip} complete.")
+                print(f"Traceroute to {ip} complete and written to file.")
             except Exception as e:
                 print(f"Traceroute to {ip} generated an exception: {e}")
 
