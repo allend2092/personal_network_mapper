@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Traceroute Visualization</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden; /* Hide scrollbars */
+        }
+        .label {
+            color: white;
+            background-color: black;
+            padding: 2px;
+            border-radius: 3px;
+            position: absolute;
+            transform: translate(-50%, -50%);
+        }
+        #file-input {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <input type="file" id="file-input" accept=".txt">
+    <div id="traceroute-container"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/renderers/CSS2DRenderer.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
